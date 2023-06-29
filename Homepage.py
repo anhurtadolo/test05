@@ -30,7 +30,7 @@ def change_project_name():
 def main():      
     st.set_page_config(
         layout= "wide",
-        page_title="IFC Stream",
+        page_title="CR protoypingAH_MG",
         page_icon="✍️",
     )
     st.title("Streamlit IFC")
@@ -54,17 +54,7 @@ def main():
         col2.text_input("✏️ Change Project Name", key="project_name_input")
         col2.button("✔️ Apply", key="change_project_name", on_click=change_project_name())
 
-    st.sidebar.write("""
-    --------------
-    ### Credits:
-    #### Sigma Dimensions (TM)
-    
-    Follow us [on Youtube](https://www.youtube.com/channel/UC9bPwuJZUD6ooKqzwdq9M9Q?sub_confirmation=1)
-    
-    --------------
-    License: MIT
-    
-    """)
+    st.sidebar.write ("Hurtado Lopez, Andres"; "Gutierrez, Miguel")
     st.write("")
     st.sidebar.write("")
 
