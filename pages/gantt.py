@@ -3,250 +3,152 @@ import streamlit as st
 from tools import ifchelper
 from tools import graph_maker
 from datetime import datetime
-
+from st_aggrid import AgGrid
+import pandas as pd 
+import numpy as np
+import plotly.express as px
+from  PIL import Image
+import io
 import ifcopenshell
 
-def initialize_session_state():
-    session["isHealthDataLoaded"] = False
-    session["HealthData"] = {}
-    session["Graphs"] = {}
-    session["SequenceData"] = {}
-    session["CostScheduleData"] = {}
+st.set_page_config(layout='wide') #Choose wide mode as the default setting
 
-def load_data():
-    if "ifc_file" in session:
-        session.Graphs = {
-            "objects_graph": graph_maker.get_elements_graph(session.ifc_file),
-            "high_frquency_graph": graph_maker.get_high_frequency_entities_graph(session.ifc_file)
-        }
-        load_cost_schedules()
-        load_work_schedules()
-        session["isHealthDataLoaded"] = True
+#Add a logo (optional) in the sidebar
+logo = Image.open(r'...\Insights_Bees_logo.png')
+st.sidebar.image(logo,  width=120)
 
-def load_work_schedules():
-    session.SequenceData = {
-        "schedules": session.ifc_file.by_type("IfcWorkSchedule"),
-        "tasks": session.ifc_file.by_type("IfcTask"),
-        "ScheduleData": [{
-            "Id": schedule.id(), 
-            "Data": ifchelper.get_schedule_tasks(schedule)
-            } for schedule in session.ifc_file.by_type("IfcWorkSchedule")
-        ],
-    }
+#Add the expander to provide some information about the app
+with st.sidebar.expander("About the App"):
+     st.write("this page is generate to test a gannt chart in the app")
 
-def load_cost_schedules():
-    session["CostData"] = {
-        "schedules": session.ifc_file.by_type("IfcCostSchedule"),
-        "cost_items": session.ifc_file.by_type("IfcCostItem")
-    }
- 
-def add_cost_schedule():
-    ifchelper.create_cost_schedule(session.ifc_file, session["cost_input"])
-    load_cost_schedules()
+#Create a user feedback section to collect comments and ratings from users
+with st.sidebar.form(key='columns_in_form',clear_on_submit=True): #set clear_on_submit=True so that the form will be reset/cleared once it's submitted
+    st.write('Please help us improve!')
+    st.write('<style>div.row-widget.stRadio > div{flex-direction:row;} </style>', unsafe_allow_html=True) #Make horizontal radio buttons
+    rating=st.radio("Please rate the app",('1','2','3','4','5'),index=4)    #Use radio buttons for ratings
+    text=st.text_input(label='Please leave your feedback here') #Collect user feedback
+    submitted = st.form_submit_button('Submit')
+    if submitted:
+      st.write('Thanks for your feedback!')
+      st.markdown('Your Rating:')
+      st.markdown(rating)
+      st.markdown('Your Feedback:')
+      st.markdown(text)
 
-def add_work_schedule():
-    ifchelper.create_work_schedule(session.ifc_file, session["schedule_input"])
-    load_work_schedules()
+#Add an app title. Use css to style the title
+st.markdown(""" <style> .font {                                          
+    font-size:30px ; font-family: 'Cooper Black'; color: #FF9633;} 
+    </style> """, unsafe_allow_html=True)
+st.markdown('<p class="font">Upload your project plan file and generate Gantt chart instantly</p>', unsafe_allow_html=True)
+
+#Allow users to download the template
+@st.cache
+def convert_df(df):
+     return df.to_csv().encode('utf-8')
+df=pd.read_csv(r'...\template.csv')
+csv = convert_df(df)
+st.download_button(
+     label="Download Template",
+     data=csv,
+     file_name='project_template.csv',
+     mime='text/csv',
+ )
+
+#Add a file uploader to allow users to upload their project plan file
+st.subheader('Step 2: Upload your project plan file')
+
+uploaded_file = st.file_uploader("Fill out the project plan template and upload your file here. After you upload the file, you can edit your project plan within the app.", type=['csv'])
+if uploaded_file is not None:
+    Tasks=pd.read_csv(uploaded_file)
+    Tasks['Start'] = Tasks['Start'].astype('datetime64')
+    Tasks['Finish'] = Tasks['Finish'].astype('datetime64')
     
-def draw_graphs():
-    row1_col1, row1_col2 = st.columns(2)
-    with row1_col1:
-        graph = session.Graphs["objects_graph"]
-        st.pyplot(graph)
-    with row1_col2:
-        graph = session.Graphs["high_frquency_graph"]
-        st.pyplot(graph)
-    
-def draw_schedules():
-    col1, col2 = st.columns(2)
-    with col1:
-        number_of_schedules = len(session.SequenceData["schedules"])
-        st.subheader(
-            f'Work Schedules: {number_of_schedules}'
+    grid_response = AgGrid(
+        Tasks,
+        editable=True, 
+        height=300, 
+        width='100%',
         )
-        schedules = [f'{work_schedule.Name} / {work_schedule.id()}'  for work_schedule in session.SequenceData["schedules"] or []]
-        st.selectbox("Schedules", schedules, key="schedule_selector" )
-        schedule_id = int(session.schedule_selector.split("/",1)[1]) if session.schedule_selector else None
-        schedule = session.ifc_file.by_id(schedule_id) if schedule_id else None
-        if schedule:
-            tasks = ifchelper.get_schedule_tasks(schedule) if schedule else None
-            if tasks:
-                st.info(f'Number of Tasks : {len(tasks)}')
-                task_data = ifchelper.get_task_data(tasks)
-                st.table(task_data)
-            else:
-                st.warning("No Tasks 😥")
-        else:
-            st.warning("No Schedules 😥")
 
-    with col2:
-        number_of_schedules = len(session.CostData["schedules"])
-        st.subheader(
-            f'Cost Schedules: {number_of_schedules}'
+    updated = grid_response['data']
+    df = pd.DataFrame(updated) 
+    
+else:
+    st.warning('You need to upload a csv file.') 
+
+#Main interface section 2
+st.subheader('Step 2: Upload your project plan file')
+uploaded_file = st.file_uploader("Fill out the project plan template and upload your file here. After you upload the file, you can edit your project plan within the app.", type=['csv'])
+if uploaded_file is not None:
+    Tasks=pd.read_csv(uploaded_file)
+    Tasks['Start'] = Tasks['Start'].astype('datetime64')
+    Tasks['Finish'] = Tasks['Finish'].astype('datetime64')
+    
+    grid_response = AgGrid(
+        Tasks,
+        editable=True, 
+        height=300, 
+        width='100%',
         )
-        st.selectbox("Cost Schedules", [f'{cost_schedule.Name} ({cost_schedule.id( )})' for cost_schedule in session.CostData["schedules"] or []])
-        if not session.ifc_file.by_type("IfcCostItem"):
-            st.warning("No Cost Items 😥")
 
-def draw_side_bar():    
-    def save_file():
-        session.ifc_file.write(session.file_name)
-    ## Cost Scheduler
-    st.sidebar.header("💰 Cost Scheduler")
-    st.sidebar.text_input("✏️ Schedule Name", key="cost_input")
-    st.sidebar.button("➕ Add Schedule", key="add_schedule_button", on_click=add_cost_schedule)
-
-    ## Work Scheduler
-    st.sidebar.header("📅 Cost Scheduler")
-    st.sidebar.text_input("✏️ Schedule Name", key="schedule_input")
-    st.sidebar.button("➕ Add Schedule", key="add_work_schedule_button", on_click=add_work_schedule)
-
-    ## File Saver
-    st.sidebar.button("💾 Save File", key="save_file", on_click=save_file)
-
-def initialise_debug_props(force=False):
-    if not "BIMDebugProperties" in session:
-        session.BIMDebugProperties = {
-            "step_id": 0,
-            "number_of_polygons": 0,
-            "percentile_of_polygons": 0,
-            "active_step_id": 0,
-            "step_id_breadcrumb": [],
-            "attributes": [],
-            "inverse_attributes": [],
-            "inverse_references": [],
-            "express_file": None,
-        }
-    if force:
-        session.BIMDebugProperties = {
-            "step_id": 0,
-            "number_of_polygons": 0,
-            "percentile_of_polygons": 0,
-            "active_step_id": 0,
-            "step_id_breadcrumb": [],
-            "attributes": [],
-            "inverse_attributes": [],
-            "inverse_references": [],
-            "express_file": None,
-        }
-
-def get_object_data(fromId=None):
-    def add_attribute(prop, key, value):
-        if isinstance(value, tuple) and len(value) < 10:
-            for i, item in enumerate(value):
-                add_attribute(prop, key + f"[{i}]", item)
-            return
-        elif isinstance(value, tuple) and len(value) >= 10:
-            key = key + "({})".format(len(value))
-        
-        propy = {
-            "name": key,
-            "string_value": str(value),
-            "int_value": int(value.id()) if isinstance(value, ifcopenshell.entity_instance) else None,
-        }
-        prop.append(propy)
-            
-    if session.BIMDebugProperties:
-        initialise_debug_props(force=True)
-        step_id = 0
-        if fromId:
-            step_id = fromId
-        else:
-            step_id = int(session.object_id) if session.object_id else 0
-        debug_props = st.session_state.BIMDebugProperties
-        debug_props["active_step_id"] = step_id
-        crumb = {"name": str(step_id)}
-        debug_props["step_id_breadcrumb"].append(crumb)
-        element = session.ifc_file.by_id(step_id)
-        debug_props["inverse_attributes"] = []
-        debug_props["inverse_references"] = []
-        
-        for key, value in element.get_info().items():
-            add_attribute(debug_props["attributes"], key, value)
-
-        for key in dir(element):
-            if (
-                not key[0].isalpha()
-                or key[0] != key[0].upper()
-                or key in element.get_info()
-                or not getattr(element, key)
-            ):
-                continue
-            add_attribute(debug_props["inverse_attributes"], key, getattr(element, key))
-        
-        for inverse in session.ifc_file.get_inverse(element):
-            propy = {
-                "string_value": str(inverse),
-                "int_value": inverse.id(),
-            }
-            debug_props["inverse_references"].append(propy)
-            
-        print(debug_props["attributes"])
-
-def edit_object_data(object_id, attribute):
-    entity = session.ifc_file.by_id(object_id)
-    print(getattr(entity, attribute))
+    updated = grid_response['data']
+    df = pd.DataFrame(updated) 
     
-def execute():
+    #Main interface - section 3
+    st.subheader('Step 3: Generate the Gantt chart')
     
-    initialise_debug_props()
-    st.header(" 🩺 Model Health")
+    Options = st.selectbox("View Gantt Chart by:", ['Team','Completion Pct'],index=0)
+    if st.button('Generate Gantt Chart'): 
+        fig = px.timeline(
+                        df, 
+                        x_start="Start", 
+                        x_end="Finish", 
+                        y="Task",
+                        color=Options,
+                        hover_name="Task Description"
+                        )
 
-    if "isHealthDataLoaded" not in session:
-        initialize_session_state()
-
-    if not session.isHealthDataLoaded:
-        load_data()
-
-    if session.isHealthDataLoaded:
-        tab1, tab2, tab3 = st.tabs(["📊 Debug", "📈 Charts", "📝 Schedules"])
+        fig.update_yaxes(autorange="reversed")          #if not specified as 'reversed', the tasks will be listed from bottom up       
         
-        ## REPLICATE IFC DEBUG PANNEL
-        with tab1:
-            row1_col1, row1_col2 = st.columns([1,5])
-            with row1_col1:
-                st.text_input("Object ID", key="object_id")
-                st.button("Inspect from Object Id", key="get_object_button", on_click=get_object_data, args=(session.object_id,))
-            if "BIMDebugProperties" in session and session.BIMDebugProperties:
-                props = session.BIMDebugProperties
-                ## DIRECT ATTRIBUTES
-                if props["attributes"]:
-                    st.subheader("Attributes")
-                    for prop in props["attributes"]:
-                        col2, col3 = st.columns([3,3])
-                        if prop["int_value"]:
-                            col2.text(f'🔗 {prop["name"]}')
-                            col2.info(prop["string_value"])
-                            col3.text("🔗")
-                            col3.button("Get Object", key=f'get_object_pop_button_{prop["int_value"]}', on_click=get_object_data, args=(prop["int_value"],))
-                        else:
-                            col2.text_input(label=prop["name"], key=prop["name"], value=prop["string_value"])
-                
-                ## INVERSE ATTRIBUTES           
-                if props["inverse_attributes"]:
-                    st.subheader("Inverse Attributes")
-                    for inverse in props["inverse_attributes"]:
-                        col1, col2, col3 = st.columns([3,5,8])
-                        col1.text(inverse["name"])
-                        col2.text(inverse["string_value"])
-                        if inverse["int_value"]:
-                            col3.button("Get Object", key=f'get_object_pop_button_{inverse["int_value"]}', on_click=get_object_data, args=(inverse["int_value"],))
+        fig.update_layout(
+                        title='Project Plan Gantt Chart',
+                        hoverlabel_bgcolor='#DAEEED',   #Change the hover tooltip background color to a universal light blue color. If not specified, the background color will vary by team or completion pct, depending on what view the user chooses
+                        bargap=0.2,
+                        height=600,              
+                        xaxis_title="", 
+                        yaxis_title="",                   
+                        title_x=0.5,                    #Make title centered                     
+                        xaxis=dict(
+                                tickfont_size=15,
+                                tickangle = 270,
+                                rangeslider_visible=True,
+                                side ="top",            #Place the tick labels on the top of the chart
+                                showgrid = True,
+                                zeroline = True,
+                                showline = True,
+                                showticklabels = True,
+                                tickformat="%x\n",      #Display the tick labels in certain format. To learn more about different formats, visit: https://github.com/d3/d3-format/blob/main/README.md#locale_format
+                                )
+                    )
+        
+        fig.update_xaxes(tickangle=0, tickfont=dict(family='Rockwell', color='blue', size=15))
 
-                ## INVERSE REFERENCES    
-                if props["inverse_references"]:
-                    st.subheader("Inverse References")
-                    for inverse in props["inverse_references"]:
-                        col1, col3 = st.columns([3,3])
-                        col1.text(inverse["string_value"])
-                        if inverse["int_value"]:
-                            col3.button("Get Object", key=f'get_object_pop_button_inverse_{inverse["int_value"]}', on_click=get_object_data, args=(inverse["int_value"],))
-        with tab2:
-            draw_graphs()
-        with tab3:
-            draw_schedules()
-        draw_side_bar()
+        st.plotly_chart(fig, use_container_width=True)  #Display the plotly chart in Streamlit
+
+        st.subheader('Bonus: Export the interactive Gantt chart to HTML and share with others!') #Allow users to export the Plotly chart to HTML
+        buffer = io.StringIO()
+        fig.write_html(buffer, include_plotlyjs='cdn')
+        html_bytes = buffer.getvalue().encode()
+        st.download_button(
+            label='Export to HTML',
+            data=html_bytes,
+            file_name='Gantt.html',
+            mime='text/html'
+        ) 
     else:
-        st.header("Step 1: Load a file from the Home Page")
+        st.write('---') 
+   
+else:
+    st.warning('You need to upload a csv file.')
 
-session = st.session_state
-execute()
+
