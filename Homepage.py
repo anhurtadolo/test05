@@ -54,7 +54,7 @@ def main():
         col2.text_input("✏️ Change Project Name", key="project_name_input")
         col2.button("✔️ Apply", key="change_project_name", on_click=change_project_name())
 
-    st.sidebar.write ("Hurtado Lopez, Andres"; "Gutierrez, Miguel")
+    st.sidebar.write ("Hurtado Lopez, Andres & Gutierrez, Miguel")
     st.write("")
     st.sidebar.write("")
 
