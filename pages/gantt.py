@@ -4,12 +4,6 @@ import pandas as pd
 import plotly.figure_factory as ff
 
 
-session = st.session_state
-
-def initialize_session_state():
-    session["DataFrame"] = None
-    session["Classes"] = []
-    session["IsDataFrameLoaded"] = False
 
 df = [dict(Task="Job-1", Start='2017-01-01', Finish='2017-02-02', Resource='Complete'),
       dict(Task="Job-1", Start='2017-02-15', Finish='2017-03-15', Resource='Incomplete'),
